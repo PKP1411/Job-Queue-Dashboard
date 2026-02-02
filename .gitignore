@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Env and secrets
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Build / dist
+dist/
+build/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Optional: ignore local queue data so each clone starts fresh (uncomment if you prefer)
+# backend/data/jobs.json
+# backend/data/metrics.json
+# backend/data/ratelimit.json

@@ -1,0 +1,465 @@
+:root {
+  --bg: #0f0f12;
+  --surface: #18181c;
+  --border: #2a2a30;
+  --text: #e4e4e7;
+  --muted: #71717a;
+  --pending: #eab308;
+  --running: #3b82f6;
+  --done: #22c55e;
+  --failed: #ef4444;
+  --dlq: #a855f7;
+  --accent: #6366f1;
+  --radius: 8px;
+  --font: 'DM Sans', system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.app {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  min-height: 100vh;
+}
+
+.header {
+  margin-bottom: 1.5rem;
+}
+
+.header h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin: 0 0 0.25rem 0;
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  color: var(--muted);
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.banner {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+  margin-bottom: 1rem;
+}
+
+.banner.error {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.banner code {
+  font-size: 0.9em;
+}
+
+/* Metrics */
+.metrics {
+  margin-bottom: 1.5rem;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 0.75rem;
+}
+
+.metric {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  text-align: center;
+}
+
+.metric .value {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.metric.dlq .value {
+  color: var(--dlq);
+}
+
+.metric span:last-child {
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Submit form */
+.submit-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.submit-section h2,
+.jobs-section h2,
+.dlq-section h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0 0 1rem 0;
+}
+
+.submit-hint {
+  font-size: 0.9rem;
+  color: var(--muted);
+  margin: 0 0 0.75rem 0;
+}
+
+.submit-form .input-text {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  margin-top: 0.35rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.submit-form label {
+  display: block;
+  margin-bottom: 0.75rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.submit-form label + .form-row {
+  margin-top: 0.75rem;
+}
+
+.submit-form .api-key-label {
+  margin-top: 0.75rem;
+}
+
+.submit-form input,
+.submit-form textarea {
+  width: 100%;
+  margin-top: 0.35rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.95rem;
+}
+
+.submit-form textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.submit-form input::placeholder,
+.submit-form textarea::placeholder {
+  color: var(--muted);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 600px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.btn-primary {
+  margin-top: 0.75rem;
+  padding: 0.6rem 1.25rem;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.1);
+}
+
+/* Quick submit row */
+.quick-submit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem 0;
+}
+.quick-submit-label {
+  font-size: 0.9rem;
+  color: var(--muted);
+  margin-right: 0.25rem;
+}
+.btn-quick {
+  padding: 0.45rem 0.85rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.btn-quick:hover {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+.btn-quick.danger:hover {
+  background: var(--failed);
+  border-color: var(--failed);
+}
+
+.submit-feedback {
+  margin-top: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.submit-feedback.success {
+  color: var(--done);
+}
+
+.submit-feedback.error {
+  color: var(--failed);
+}
+
+/* Jobs section */
+.jobs-section,
+.dlq-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.tabs button {
+  padding: 0.4rem 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.tabs button:hover {
+  color: var(--text);
+}
+
+.tabs button.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+.job-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.job-row,
+.dlq-row {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.job-row:hover,
+.dlq-row:hover {
+  border-color: var(--muted);
+}
+
+.dlq-reason {
+  color: #fca5a5;
+  font-size: 0.9rem;
+  max-width: 100%;
+}
+
+.job-row.status-pending { border-left: 3px solid var(--pending); }
+.job-row.status-running { border-left: 3px solid var(--running); }
+.job-row.status-done    { border-left: 3px solid var(--done); }
+.job-row.status-failed  { border-left: 3px solid var(--failed); }
+
+.job-row-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+}
+
+.job-id {
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.job-status {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+}
+
+.job-row.status-pending .job-status { background: rgba(234, 179, 8, 0.2); color: var(--pending); }
+.job-row.status-running .job-status { background: rgba(59, 130, 246, 0.2); color: var(--running); }
+.job-row.status-done .job-status    { background: rgba(34, 197, 94, 0.2); color: var(--done); }
+.job-row.status-failed .job-status  { background: rgba(239, 68, 68, 0.2); color: var(--failed); }
+
+.job-text {
+  font-size: 0.9rem;
+  color: var(--text);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.job-row.is-running {
+  animation: pulse-row 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse-row {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.85; }
+}
+
+/* Progress bar for running jobs */
+.job-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+.job-progress {
+  flex: 1;
+  height: 8px;
+  background: var(--surface);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.job-progress-bar {
+  height: 100%;
+  background: var(--running);
+  border-radius: 4px;
+  transition: width 0.2s ease-out;
+}
+.job-progress-label {
+  font-size: 0.8rem;
+  color: var(--muted);
+  min-width: 2.5rem;
+}
+
+.job-retries {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.job-time {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-left: auto;
+}
+
+.job-row-detail {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+
+.job-row-detail p {
+  margin: 0.35rem 0;
+}
+
+.job-row-detail pre {
+  margin: 0.25rem 0;
+  padding: 0.5rem;
+  background: var(--surface);
+  border-radius: 4px;
+  overflow-x: auto;
+  font-size: 0.8rem;
+}
+
+.job-row-detail code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+}
+
+.job-row-detail .error {
+  color: var(--failed);
+}
+
+.dlq-row {
+  border-left: 3px solid var(--dlq);
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.footer {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.footer code {
+  font-size: 0.9em;
+}
