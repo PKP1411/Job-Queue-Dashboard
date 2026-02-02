@@ -41,8 +41,7 @@ This document describes **what is implemented**, **which file handles what**, **
 | Function | What it does | Who calls it |
 |----------|--------------|--------------|
 | `load()` | Reads `jobs.json`, parses JSON; returns `{ jobs, dlq }` or default. Creates `data/` if missing. | Used internally by all other store functions. |
-| `save(data)` | Trims to max 5 jobs + 5 DLQ (see `trimToLimit`), then writes JSON to `jobs.json`. | `createJob`, `updateJob`, `addToDlq`. |
-| `trimToLimit(data)` | Sorts jobs by `updated_at` (desc), keeps first 5; sorts dlq by `failed_at` (desc), keeps first 5. | Called inside `save()`. |
+| `save(data)` | Writes full `jobs` and `dlq` arrays to `jobs.json` (no trimming; full history kept). | `createJob`, `updateJob`, `addToDlq`. |
 | `getJob(id)` | Loads data, returns job object or null. | `main.js` (GET /jobs/:id, rowToJob), `worker.js` (leaseOne, retry, runOneJob payload). |
 | `getJobs(status, limit, offset)` | Loads data, optionally filters by status, sorts by `created_at` desc, slices. | `main.js` (GET /jobs). |
 | `createJob(job)` | Loads, pushes job to `data.jobs`, saves. | `main.js` (POST /jobs). |
@@ -57,7 +56,7 @@ This document describes **what is implemented**, **which file handles what**, **
 | `addToDlq(item)` | Loads, pushes item to `data.dlq`, saves. | `worker.js` (sendToDlq). |
 | `getDlqCount()` | Loads, returns `data.dlq.length`. | `main.js` (GET /metrics). |
 
-**Important:** Every write goes through `save()`, which **trims** the file to 5 jobs and 5 DLQ items (most recent kept).
+**Important:** Every write goes through `save()`, which writes the full job and DLQ history (no trimming).
 
 ---
 
@@ -280,4 +279,219 @@ No code change needed; override in `.env`.
 ---
 
 For **auto-scaling workers** and **design trade-offs**, see [DESIGN_AND_SCALING.md](./DESIGN_AND_SCALING.md).  
-For **setup and usage**, see [README.md](./README.md).
+For **setup and quick start**, see [README.md](./README.md).
+
+---
+
+## 6. Highlighted features (reference)
+
+### Core
+
+| Feature | What it does |
+|--------|----------------|
+| **REST Job API** | Submit jobs (`POST /jobs`), check status (`GET /jobs/:id`), list by status. Optional **idempotency key** to avoid duplicate submissions. |
+| **Persistence** | All jobs and DLQ items in `backend/data/jobs.json`; metrics in `backend/data/metrics.json`. Full history kept — no trimming. Survives restarts. |
+| **Worker: Lease → Ack → Retry → DLQ** | Workers **lease up to 5 jobs concurrently**, process each, then **ack** (done) or **retry** (re-queue). After max retries, job moves to **Dead Letter Queue (DLQ)**. |
+| **Rate limits** | Per-tenant: **10 new jobs per minute**. New jobs wait in queue; worker processes up to 5 at a time. |
+| **Dashboard (React)** | View **Pending / Running / Done / Failed** jobs and **DLQ**. Submit jobs and see status. |
+| **Observability** | **Structured JSON logs** (event, jobId, traceId). **GET /metrics** (counts). **GET /health** (uptime). |
+
+### Beyond core
+
+| Feature | Why it stands out |
+|--------|--------------------|
+| **Real-time updates** | Dashboard polls and updates when jobs change (lease, ack, retry, DLQ). |
+| **Retry failed/DLQ jobs from UI** | **Retry** button on failed jobs and DLQ rows. Creates a **new job with the same payload**. |
+| **Text-based jobs, 1 sec per character** | Processing time = **1 second per character** (min 1s, max 30s). |
+| **Lease timeout** | Stuck “running” jobs are re-queued after 5 minutes if worker dies. |
+| **Optional API key auth** | Set `API_KEY` in `.env`; clients send **X-API-Key**. |
+| **Trace ID** | Every API response includes **X-Trace-Id** for correlation. |
+| **Pagination** | `GET /jobs?limit=20&offset=0`. |
+| **Tests** | `npm test` in backend runs health, submit, get, idempotency, list, metrics. |
+
+---
+
+## 7. Using the dashboard
+
+### Submitting a job
+
+1. **Text to process** — Enter any text. Processing time = **1 second per character** (e.g. `Hello` = 5 seconds).
+2. Click **Submit job**, or use **Quick submit** buttons.
+
+### Job states
+
+- **Pending** — Waiting for a worker.
+- **Running** — Worker is processing (row pulses). Duration = length of the text in seconds.
+- **Done** — Completed successfully.
+- **Failed** — Failed after max retries; may appear in **DLQ** as well.
+
+### Retrying a failed or DLQ job
+
+1. Find the job in **Failed** or **Dead letter queue**.
+2. Click **Retry** on that row (if the backend exposes retry). A new job with the same payload is created and appears in **Pending**.
+
+### DLQ failure reasons (demo)
+
+| Reason | How to trigger | Example message |
+|--------|----------------|-----------------|
+| **Text length > 30** | Submit text with more than 30 characters | `Text length exceeds maximum (31 > 30 characters)` |
+| **Simulated failure** | Payload `{ "fail": true }` | `Simulated failure for testing` |
+| **Empty text** | Submit with empty or missing text | `Payload must include non-empty text` |
+| **Forbidden content** | Text contains the word `reject` | `Job rejected: forbidden content` |
+| **Invalid payload** | Payload `{ "invalid": true }` | `Invalid payload format (invalid=true)` |
+
+### Optional: API key and tenant
+
+- **API key** — If backend has `API_KEY` set, send it (e.g. in dashboard) for auth.
+- **Tenant ID** — Optional header for multi-tenant rate limits (default: `default`).
+
+---
+
+## 8. Architecture (flow)
+
+```
+┌─────────────┐     POST /jobs      ┌─────────────┐     read/write     ┌──────────────┐
+│  Dashboard  │ ──────────────────► │  API        │ ◄────────────────► │ jobs.json    │
+│  (React)    │ ◄── polling ──────── │  (Express)  │                    │ (persistence) │
+└─────────────┘                     └──────┬──────┘                    └──────────────┘
+                                            │
+                                            ▼
+                                     ┌─────────────┐     poll + lease   ┌──────────────┐
+                                     │  Worker     │ ◄────────────────► │ jobs.json     │
+                                     │  (Node)     │     ack / retry     │               │
+                                     └─────────────┘     DLQ            └──────────────┘
+```
+
+1. **User** submits from the dashboard.
+2. **API** validates rate limits, creates a job, writes to **jobs.json**, returns job id.
+3. **Worker** polls, **leases up to 5 pending jobs** (status → running), processes each.
+4. **Worker** acks (status → done), retries (back to pending), or sends to **DLQ** after max retries.
+5. **Dashboard** polls and shows **pending → running → done** (or failed/DLQ).
+
+---
+
+## 9. API reference
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | Health check. Returns `{ status: "ok", uptime }`. |
+| POST | `/jobs` | Submit job. Body: **`{ "text": "..." }`** or `{ "payload": { ... } }`. Headers: `Idempotency-Key`, `X-Tenant-Id`, `X-API-Key` (optional). |
+| POST | `/jobs/:id/retry` | **Retry** a failed or DLQ job. Creates a new job with the same payload. |
+| GET | `/jobs` | List jobs. Query: `?status=pending|running|done|failed`, `?limit=20`, `?offset=0`. |
+| GET | `/jobs/:id` | Get one job by id. |
+| GET | `/dlq` | List dead-letter queue items. |
+| GET | `/metrics` | Counts: pending, running, done, failed, dlq_count, jobs_submitted, retries. |
+
+All HTTP responses include **X-Trace-Id** for correlation.
+
+---
+
+## 10. Configuration (backend)
+
+Copy `backend/.env.example` to `backend/.env` to override:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | 8000 | API port. |
+| `API_KEY` | (none) | If set, clients must send `X-API-Key`. |
+| `RATE_LIMIT_PER_MINUTE` | 10 | Max new jobs per tenant per minute. |
+| `LEASE_TIMEOUT_SEC` | 300 | Re-queue “running” jobs after this many seconds (stale lease). |
+| `MAX_RETRIES` | 3 | Retries before moving job to DLQ. |
+| `WORKER_POLL_MS` | 2000 | Worker poll interval in ms. |
+| `WORKER_CONCURRENCY` | 5 | Max jobs processed at once (capped at 5). |
+
+---
+
+## 11. Project structure
+
+```
+Nurix AI Project by Prakash Kumar/
+├── README.md                 ← Setup and how it works
+├── IMPLEMENTATION.md         ← This file (flows, files, reference)
+├── DESIGN_AND_SCALING.md     ← Auto-scale workers + design trade-offs
+├── backend/
+│   ├── main.js               ← API server
+│   ├── worker.js             ← Job processor (lease / ack / retry / DLQ)
+│   ├── store.js              ← File-backed store (jobs.json)
+│   ├── config.js             ← Env configuration
+│   ├── logger.js             ← Structured JSON logs
+│   ├── package.json
+│   ├── .env.example
+│   ├── data/
+│   │   └── jobs.json         ← Persistent jobs + DLQ
+│   └── tests/
+│       └── api.test.js       ← API tests (npm test)
+├── frontend/
+│   ├── src/
+│   │   ├── App.jsx           ← Dashboard (submit, list, retry)
+│   │   ├── api.js            ← API client
+│   │   └── App.css
+│   ├── index.html
+│   └── vite.config.js        ← Proxy /api to backend
+└── db/
+    ├── schema.md             ← Schema reference
+    └── README.md
+```
+
+---
+
+## 12. Tests
+
+With the **API running** in another terminal:
+
+```bash
+cd backend
+npm test
+```
+
+Covers: health, submit job, get job, idempotency key, list jobs, metrics.
+
+---
+
+## 13. Design trade-offs
+
+| Area | Choice | Trade-off |
+|------|--------|-----------|
+| **Storage** | JSON file | No DB server; simple. For scale, switch to Postgres/Redis with same API. |
+| **Workers** | Single process, poll | Easy to run. Scale by running multiple workers; use atomic lease in DB for safety. |
+| **Live updates** | Polling | Simple; no WebSocket in current setup. |
+| **Auth** | Optional API key | Good for prototype; use JWT/OAuth for production. |
+| **Lease timeout** | Re-queue stuck jobs | Prevents permanent blockage if worker dies; tune timeout to avoid duplicate work. |
+
+---
+
+## 14. Evaluation focus mapping
+
+| Focus | Where it’s covered |
+|-------|--------------------|
+| **Correctness** | Lease/ack/retry/DLQ in `worker.js`; idempotency in `main.js`; lease timeout; retry from UI. |
+| **Reliability** | Persistence in `jobs.json`; survives restarts; lease timeout. |
+| **API & UX** | REST; dashboard with submit, status tabs, DLQ, **Retry**. |
+| **Observability** | Structured logs; `/metrics` and `/health`; trace ID; job ID in logs. |
+| **Code quality** | Modular backend; comments; `npm test`; README and IMPLEMENTATION.md. |
+
+---
+
+## 15. Security (hardening)
+
+- **API key:** Constant-time comparison (`crypto.timingSafeEqual`) to prevent timing attacks.
+- **Input validation:** Tenant ID and idempotency key length-capped and sanitized; job id validated for lookups; `status` in GET /jobs restricted; `limit`/`offset` validated and bounded.
+- **Payload:** Only allowed keys (`text`, `fail`, `invalid`) are stored to avoid prototype pollution.
+- **Security headers:** `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`.
+- **Error responses:** 500 handler returns a generic message so internal details are not leaked.
+- **Store:** Max file size on load; job id and tenant/idempotency key length limits; safe JSON parse in API and worker.
+- **Dependencies:** Run `npm audit` in backend and frontend and fix reported issues.
+
+---
+
+## 16. Quick reference
+
+| Goal | Command / Action |
+|------|------------------|
+| Start API | `cd backend && npm start` |
+| Start worker | `cd backend && npm run worker` |
+| Start dashboard | `cd frontend && npm run dev` → open http://localhost:5173 |
+| Submit job | Dashboard: enter text → **Submit job**, or use **Quick submit**. |
+| Retry failed/DLQ job | Click **Retry** on the job row (if endpoint exists). |
+| Run tests | `cd backend && npm test` (API must be running). |
+| Change port | `PORT=8001 npm start` in backend. |
